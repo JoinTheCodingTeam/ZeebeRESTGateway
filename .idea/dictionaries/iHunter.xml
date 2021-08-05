@@ -2,6 +2,8 @@
   <dictionary name="iHunter">
     <words>
       <w>aiohttp</w>
+      <w>mypy</w>
+      <w>venv</w>
       <w>zeebe</w>
     </words>
   </dictionary>

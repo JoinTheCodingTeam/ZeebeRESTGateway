@@ -7,22 +7,29 @@ from asyncio import sleep
 from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, PositiveInt, Field, constr
+from pydantic import BaseModel, PositiveInt, Field, ConstrainedStr
 from pyzeebe import ZeebeClient
 from pyzeebe.exceptions import ZeebeInternalError, ZeebeBackPressure, ZeebeGatewayUnavailable, MessageAlreadyExists
 
 ZEEBE_HOSTNAME = os.getenv('ZEEBE_HOSTNAME')
-ZEEBE_PORT = int(os.getenv('ZEEBE_PORT', 26500))
-ZEEBE_PUBLISH_RETRY_ATTEMPTS = max(1, int(os.getenv('ZEEBE_PUBLISH_RETRY_ATTEMPTS', 5)))
-ZEEBE_PUBLISH_RETRY_DELAY_MS = int(os.getenv('ZEEBE_PUBLISH_RETRY_DELAY_MS', 100))
+ZEEBE_PORT = int(os.getenv('ZEEBE_PORT', '26500'))
+ZEEBE_PUBLISH_RETRY_ATTEMPTS = max(1, int(os.getenv('ZEEBE_PUBLISH_RETRY_ATTEMPTS', '5')))
+ZEEBE_PUBLISH_RETRY_DELAY_MS = int(os.getenv('ZEEBE_PUBLISH_RETRY_DELAY_MS', '100'))
 
 app = FastAPI()
 zeebe_client = ZeebeClient(ZEEBE_HOSTNAME, ZEEBE_PORT)
 
 
+class NonEmptyStr(ConstrainedStr):
+    """Type for non-empty string"""
+    min_length = 1
+    strip_whitespace = True
+
+
 class Message(BaseModel):
-    name: constr(min_length=1) = Field(title='The message name')
-    correlation_key: constr(min_length=1) = \
+    """Message"""
+    name: NonEmptyStr = Field(title='The message name')
+    correlation_key: NonEmptyStr = \
         Field(title='The correlation key. For more info: '
                     'https://docs.zeebe.io/glossary.html?highlight=correlation#correlation-key')
     variables: Dict[str, Any] = Field(title='Message payload. The variables the message should contain.')
@@ -31,6 +38,7 @@ class Message(BaseModel):
                                                                       'Default: 60000 ms (60 seconds)')
 
     class Config:
+        """Model configuration"""
         schema_extra = {
             'example': {
                 'name': 'example_message',
@@ -40,12 +48,9 @@ class Message(BaseModel):
         }
 
 
-class PublishResponse(BaseModel):
-    pass
-
-
 @app.post('/publish')
 async def publish(message: Message) -> None:
+    """Publish message to Zeebe."""
     attempts = ZEEBE_PUBLISH_RETRY_ATTEMPTS
     message_id = uuid.uuid4().hex
     last_error_type = None
