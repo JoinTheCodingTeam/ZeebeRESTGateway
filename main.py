@@ -2,7 +2,6 @@
 Zeebe gRPC<->REST adapter.
 """
 import os
-import uuid
 from asyncio import sleep
 from typing import Optional, Dict, Any
 
@@ -36,6 +35,8 @@ class Message(BaseModel):
     time_to_live_in_milliseconds: Optional[PositiveInt] = Field(default=None,
                                                                 title='How long this message should stay active. '
                                                                       'Default: 60000 ms (60 seconds)')
+    message_id: NonEmptyStr = Field(title='A unique message id, usually GUID, for avoiding duplication. '
+                                          'If a message with this id is still active, the copy is silently ignored.')
 
     class Config:
         """Model configuration"""
@@ -44,6 +45,7 @@ class Message(BaseModel):
                 'name': 'example_message',
                 'correlation_key': '0x3113123123',
                 'variables': {'value': 5},
+                'message_id': 'c2c4e256054345e4900bb062d62ab5b5',
             }
         }
 
@@ -52,13 +54,12 @@ class Message(BaseModel):
 async def publish(message: Message) -> None:
     """Publish message to Zeebe."""
     attempts = ZEEBE_PUBLISH_RETRY_ATTEMPTS
-    message_id = uuid.uuid4().hex
     last_error_type = None
     while attempts > 0:
         attempts -= 1
         try:
             zeebe_client.publish_message(message.name, message.correlation_key, message.variables,
-                                         message.time_to_live_in_milliseconds, message_id)
+                                         message.time_to_live_in_milliseconds, message.message_id)
         except (ZeebeInternalError, ZeebeBackPressure, ZeebeGatewayUnavailable) as err:
             # Retrying after a delay.
             await sleep(ZEEBE_PUBLISH_RETRY_DELAY_MS / 1000)

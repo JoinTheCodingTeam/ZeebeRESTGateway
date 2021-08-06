@@ -22,7 +22,8 @@ async def test_publishes_message(client: AsyncClient, mocker: MockerFixture):
         'correlation_key': '0x3113123123',
         'variables': {
             'value': 5
-        }
+        },
+        'message_id': '234456cx334',
     })
     assert resp.status_code == 200
     zeebe_client.publish_message.assert_called_once()
@@ -34,18 +35,15 @@ async def test_sends_all_params(client: AsyncClient, mocker: MockerFixture):
     correlation_key = '0x3113123123'
     variables = {'value': 5}
     time_to_live_in_milliseconds = 50
-    message_id = 'some-uuid'
+    message_id = '234456cx334'
     mocker.patch('main.zeebe_client.publish_message')
-
-    uuid_mock = Mock()
-    uuid_mock.hex = message_id
-    mocker.patch('uuid.uuid4', lambda: uuid_mock)
 
     resp = await client.post('/publish', json={
         'name': name,
         'correlation_key': correlation_key,
         'variables': variables,
         'time_to_live_in_milliseconds': time_to_live_in_milliseconds,
+        'message_id': message_id,
     })
     assert resp.status_code == 200
     zeebe_client.publish_message.assert_called_once_with(name, correlation_key, variables,
@@ -68,7 +66,8 @@ async def test_validates_missing_params(client: AsyncClient):
     assert json == {'detail': [{'loc': ['body', 'name'], 'msg': 'field required', 'type': 'value_error.missing'},
                                {'loc': ['body', 'correlation_key'], 'msg': 'field required',
                                 'type': 'value_error.missing'},
-                               {'loc': ['body', 'variables'], 'msg': 'field required', 'type': 'value_error.missing'}]}
+                               {'loc': ['body', 'variables'], 'msg': 'field required', 'type': 'value_error.missing'},
+                               {'loc': ['body', 'message_id'], 'msg': 'field required', 'type': 'value_error.missing'}]}
 
 
 @pytest.mark.asyncio
@@ -78,6 +77,7 @@ async def test_validates_param_values(client: AsyncClient):
         'correlation_key': '',
         'variables': ['!'],
         'time_to_live_in_milliseconds': 0,
+        'message_id': '',
     })
     assert resp.status_code == 422
     json = resp.json()
@@ -96,7 +96,11 @@ async def test_validates_param_values(client: AsyncClient):
         {'ctx': {'limit_value': 0},
          'loc': ['body', 'time_to_live_in_milliseconds'],
          'msg': 'ensure this value is greater than 0',
-         'type': 'value_error.number.not_gt'}]}
+         'type': 'value_error.number.not_gt'},
+        {'ctx': {'limit_value': 1},
+         'loc': ['body', 'message_id'],
+         'msg': 'ensure this value has at least 1 characters',
+         'type': 'value_error.any_str.min_length'}]}
 
 
 @pytest.mark.asyncio
@@ -105,20 +109,18 @@ async def test_retries_zeebe_errors(client: AsyncClient, mocker: MockerFixture):
     correlation_key = '0x3113123123'
     variables = {'value': 5}
     time_to_live_in_milliseconds = 50
-    message_id = 'some-uuid'
+    message_id = '234456cx334'
     json = {
         'name': name,
         'correlation_key': correlation_key,
         'variables': variables,
         'time_to_live_in_milliseconds': time_to_live_in_milliseconds,
+        'message_id': message_id,
     }
     delay_ms = 0.050
     exceptions = [ZeebeBackPressure, ZeebeGatewayUnavailable, ZeebeInternalError]
 
     for exception in exceptions:
-        uuid_mock = Mock()
-        uuid_mock.hex = message_id
-        mocker.patch('uuid.uuid4', lambda: uuid_mock)
         mocker.patch('main.ZEEBE_PUBLISH_RETRY_DELAY_MS', delay_ms)
 
         publish_message_mock = Mock(side_effect=exception())
@@ -141,17 +143,14 @@ async def test_ignores_message_already_exists(client: AsyncClient, mocker: Mocke
     correlation_key = '0x3113123123'
     variables = {'value': 5}
     time_to_live_in_milliseconds = 50
-    message_id = 'some-uuid'
+    message_id = '234456cx334'
     json = {
         'name': name,
         'correlation_key': correlation_key,
         'variables': variables,
         'time_to_live_in_milliseconds': time_to_live_in_milliseconds,
+        'message_id': message_id,
     }
-
-    uuid_mock = Mock()
-    uuid_mock.hex = message_id
-    mocker.patch('uuid.uuid4', lambda: uuid_mock)
 
     publish_message_mock = Mock(side_effect=MessageAlreadyExists())
     mocker.patch('main.zeebe_client.publish_message', publish_message_mock)
