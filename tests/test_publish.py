@@ -6,7 +6,7 @@ from httpx import AsyncClient
 from pytest_mock import MockerFixture
 from pyzeebe.exceptions import ZeebeBackPressure, ZeebeGatewayUnavailable, ZeebeInternalError, MessageAlreadyExists
 
-from main import app, zeebe_client, ZEEBE_PUBLISH_RETRY_ATTEMPTS
+from zeebe_rest_adapter.app import zeebe_client, app, ZEEBE_PUBLISH_RETRY_ATTEMPTS
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def client() -> AsyncClient:
 
 @pytest.mark.asyncio
 async def test_publishes_message(client: AsyncClient, mocker: MockerFixture):
-    mocker.patch('main.zeebe_client.publish_message')
+    mocker.patch('zeebe_rest_adapter.app.zeebe_client.publish_message')
     resp = await client.post('/publish', json={
         'name': 'example_message',
         'correlation_key': '0x3113123123',
@@ -36,7 +36,7 @@ async def test_sends_all_params(client: AsyncClient, mocker: MockerFixture):
     variables = {'value': 5}
     time_to_live_in_milliseconds = 50
     message_id = '234456cx334'
-    mocker.patch('main.zeebe_client.publish_message')
+    mocker.patch('zeebe_rest_adapter.app.zeebe_client.publish_message')
 
     resp = await client.post('/publish', json={
         'name': name,
@@ -121,10 +121,10 @@ async def test_retries_zeebe_errors(client: AsyncClient, mocker: MockerFixture):
     exceptions = [ZeebeBackPressure, ZeebeGatewayUnavailable, ZeebeInternalError]
 
     for exception in exceptions:
-        mocker.patch('main.ZEEBE_PUBLISH_RETRY_DELAY_MS', delay_ms)
+        mocker.patch('zeebe_rest_adapter.app.ZEEBE_PUBLISH_RETRY_DELAY_MS', delay_ms)
 
         publish_message_mock = Mock(side_effect=exception())
-        mocker.patch('main.zeebe_client.publish_message', publish_message_mock)
+        mocker.patch('zeebe_rest_adapter.app.zeebe_client.publish_message', publish_message_mock)
 
         start_time = time.monotonic()
         resp = await client.post('/publish', json=json)
@@ -153,7 +153,7 @@ async def test_ignores_message_already_exists(client: AsyncClient, mocker: Mocke
     }
 
     publish_message_mock = Mock(side_effect=MessageAlreadyExists())
-    mocker.patch('main.zeebe_client.publish_message', publish_message_mock)
+    mocker.patch('zeebe_rest_adapter.app.zeebe_client.publish_message', publish_message_mock)
 
     resp = await client.post('/publish', json=json)
     assert resp.status_code == 200
