@@ -1,5 +1,7 @@
 """
-Zeebe gRPC<->REST adapter.
+Zeebe REST gateway.
+
+Translates Zeebe gRPC calls to REST requests and vice versa.
 """
 import os
 from asyncio import sleep
@@ -8,7 +10,7 @@ from fastapi import FastAPI, HTTPException
 from pyzeebe import ZeebeClient
 from pyzeebe.exceptions import ZeebeInternalError, ZeebeBackPressure, ZeebeGatewayUnavailable, MessageAlreadyExists
 
-from zeebe_rest_adapter.types.message import Message
+from zeebe_rest_gateway.types.message import Message
 
 ZEEBE_HOSTNAME = os.getenv('ZEEBE_HOSTNAME')
 ZEEBE_PORT = int(os.getenv('ZEEBE_PORT', '26500'))

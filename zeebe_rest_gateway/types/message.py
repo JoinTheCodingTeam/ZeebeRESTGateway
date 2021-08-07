@@ -1,3 +1,6 @@
+"""
+A type for messages published to Zeebe via REST gateway.
+"""
 from typing import Dict, Any, Optional
 
 from pydantic import ConstrainedStr, BaseModel, Field, PositiveInt

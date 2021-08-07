@@ -2,8 +2,12 @@
   <dictionary name="iHunter">
     <words>
       <w>aiohttp</w>
+      <w>grpc</w>
       <w>mypy</w>
+      <w>pycache</w>
+      <w>pyzeebe</w>
       <w>venv</w>
+      <w>versioning</w>
       <w>zeebe</w>
     </words>
   </dictionary>

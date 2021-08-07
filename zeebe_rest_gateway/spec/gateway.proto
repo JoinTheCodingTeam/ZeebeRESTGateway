@@ -1,0 +1,37 @@
+/* Zeebe Gateway RPC calls supported by REST Gateway.
+ *
+ * Based on:
+ * https://github.com/camunda-cloud/zeebe/blob/clients/go%2Fv1.1.1/gateway-protocol/src/main/proto/gateway.proto
+ */
+syntax = 'proto3';
+
+message PublishMessageRequest {
+  // the name of the message
+  string name = 1;
+  // the correlation key of the message
+  string correlationKey = 2;
+  // how long the message should be buffered on the broker, in milliseconds
+  int64 timeToLive = 3;
+  // the unique ID of the message; can be omitted. only useful to ensure only one message
+  // with the given ID will ever be published (during its lifetime)
+  string messageId = 4;
+  // the message variables as a JSON document; to be valid, the root of the document must be an
+  // object, e.g. { "a": "foo" }. [ "foo" ] would not be valid.
+  string variables = 5;
+}
+
+message PublishMessageResponse {
+  // the unique ID of the message that was published
+  int64 key = 1;
+}
+
+service Gateway {
+  /*
+    Publishes a single message. Messages are published to specific partitions computed from their correlation keys.
+    Errors:
+      ALREADY_EXISTS:
+        - a message with the same ID was previously published (and is still alive)
+   */
+  rpc PublishMessage (PublishMessageRequest) returns (PublishMessageResponse) {
+  }
+}
