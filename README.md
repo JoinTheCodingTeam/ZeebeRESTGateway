@@ -11,7 +11,7 @@ A stateless daemon for translating Zeebe gRPC calls to REST requests and vice ve
 
 3. Start the server
     ```
-    uvicorn zeebe_rest_gateway.app:app --host 0.0.0.0 --port 8000
+    uvicorn zeebe_rest_gateway.app:app --host 0.0.0.0 --port 8000 --log-config=logging.yaml
     ```
 
 
