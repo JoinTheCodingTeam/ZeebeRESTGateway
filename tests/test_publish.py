@@ -1,6 +1,7 @@
 # pylint: disable=missing-function-docstring
 """Tests for Zeebe gRPC client's publish_message method"""
 import time
+from asyncio import AbstractEventLoop
 from typing import Generator
 from unittest.mock import Mock, call, AsyncMock
 
@@ -8,21 +9,26 @@ import grpc
 import pytest
 from httpx import AsyncClient
 
-from zeebe_rest_gateway.app import app, container
+from zeebe_rest_gateway.app import App
 from zeebe_rest_gateway.types.message import Message
 
 
+@pytest.fixture(name='app')
+def app_fixture() -> App:
+    return App()
+
+
 @pytest.fixture(name='client')
-def client_fixture(event_loop) -> Generator[AsyncClient, None, None]:
+def client_fixture(event_loop: AbstractEventLoop, app: App) -> Generator[AsyncClient, None, None]:
     client = AsyncClient(app=app, base_url='http://test')
     yield client
     event_loop.run_until_complete(client.aclose())
 
 
 @pytest.mark.asyncio
-async def test_publishes_message(client: AsyncClient):
+async def test_publishes_message(app: App, client: AsyncClient):
     gateway_stub_mock = AsyncMock()
-    with container.gateway_stub.override(gateway_stub_mock):
+    with app.container.gateway_stub.override(gateway_stub_mock):
         response = await client.post('/publish', json={
             'name': 'example_message',
             'correlation_key': '0x3113123123',
@@ -36,12 +42,12 @@ async def test_publishes_message(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_sends_all_params(client: AsyncClient):
+async def test_sends_all_params(app: App, client: AsyncClient):
     message = Message(name='example_message', correlation_key='0x3113123123', variables={'value': 5},
                       time_to_live_ms=50, message_id='234456cx334')
 
     gateway_stub_mock = AsyncMock()
-    with container.gateway_stub.override(gateway_stub_mock):
+    with app.container.gateway_stub.override(gateway_stub_mock):
         response = await client.post('/publish', json=message.dict())
     assert response.status_code == 200
     gateway_stub_mock.PublishMessage.assert_called_once_with(message.to_request())
@@ -101,7 +107,7 @@ async def test_validates_param_values(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_retries_zeebe_errors(client: AsyncClient):
+async def test_retries_zeebe_errors(app: App, client: AsyncClient):
     message = Message(name='example_message', correlation_key='0x3113123123', variables={'value': 5},
                       time_to_live_ms=1500, message_id='234456cx334')
     attempts = 7
@@ -112,28 +118,30 @@ async def test_retries_zeebe_errors(client: AsyncClient):
     settings_mock.zeebe_publish_retry_attempts = attempts
     settings_mock.zeebe_publish_retry_delay_ms = delay_ms
 
-    with container.settings.override(settings_mock):
+    with app.container.settings.override(settings_mock):
         for status_code in status_codes:
             gateway_stub_mock = AsyncMock()
             gateway_stub_mock.PublishMessage.side_effect = grpc.aio.AioRpcError(status_code, grpc.aio.Metadata(),
                                                                                 grpc.aio.Metadata())
             start_time = time.monotonic()
-            with container.gateway_stub.override(gateway_stub_mock):
+            with app.container.gateway_stub.override(gateway_stub_mock):
                 response = await client.post('/publish', json=message.dict())
             end_time = time.monotonic()
             assert response.status_code == 500
             gateway_stub_mock.PublishMessage.assert_has_calls([call(message.to_request()) for _ in range(attempts)])
             assert -5 <= (end_time - start_time) - (attempts * delay_ms / 1000) <= 5
 
+            app.container.reset_singletons()
+
 
 @pytest.mark.asyncio
-async def test_ignores_message_already_exists(client: AsyncClient):
+async def test_ignores_message_already_exists(app: App, client: AsyncClient):
     message = Message(name='example_message', correlation_key='0x3113123123', variables={'value': 5},
                       time_to_live_ms=50, message_id='234456cx334')
     gateway_stub_mock = AsyncMock()
     gateway_stub_mock.PublishMessage.side_effect = grpc.aio.AioRpcError(grpc.StatusCode.ALREADY_EXISTS,
                                                                         grpc.aio.Metadata(), grpc.aio.Metadata())
-    with container.gateway_stub.override(gateway_stub_mock):
+    with app.container.gateway_stub.override(gateway_stub_mock):
         response = await client.post('/publish', json=message.dict())
 
     assert response.status_code == 200

@@ -22,7 +22,7 @@ class Container(containers.DeclarativeContainer):
         create_gateway_stub,
         settings=settings,
     )
-    zeebe_client = providers.Factory(
+    zeebe_client = providers.ThreadLocalSingleton(
         ZeebeClient,
         settings=settings,
         gateway_stub=gateway_stub,
