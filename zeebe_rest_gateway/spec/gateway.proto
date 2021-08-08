@@ -4,6 +4,7 @@
  * https://github.com/camunda-cloud/zeebe/blob/clients/go%2Fv1.1.1/gateway-protocol/src/main/proto/gateway.proto
  */
 syntax = 'proto3';
+package gateway_protocol;
 
 message PublishMessageRequest {
   // the name of the message
@@ -25,6 +26,99 @@ message PublishMessageResponse {
   int64 key = 1;
 }
 
+message ActivateJobsRequest {
+  // the job type, as defined in the BPMN process (e.g. <zeebe:taskDefinition
+  // type="payment-service" />)
+  string type = 1;
+  // the name of the worker activating the jobs, mostly used for logging purposes
+  string worker = 2;
+  // a job returned after this call will not be activated by another call until the
+  // timeout (in ms) has been reached
+  int64 timeout = 3;
+  // the maximum jobs to activate by this request
+  int32 maxJobsToActivate = 4;
+  // a list of variables to fetch as the job variables; if empty, all visible variables at
+  // the time of activation for the scope of the job will be returned
+  repeated string fetchVariable = 5;
+  // The request will be completed when at least one job is activated or after the requestTimeout (in ms).
+  // if the requestTimeout = 0, a default timeout is used.
+  // if the requestTimeout < 0, long polling is disabled and the request is completed immediately, even when no job is activated.
+  int64 requestTimeout = 6;
+}
+
+message ActivateJobsResponse {
+  // list of activated jobs
+  repeated ActivatedJob jobs = 1;
+}
+
+message ActivatedJob {
+  // the key, a unique identifier for the job
+  int64 key = 1;
+  // the type of the job (should match what was requested)
+  string type = 2;
+  // the job's process instance key
+  int64 processInstanceKey = 3;
+  // the bpmn process ID of the job process definition
+  string bpmnProcessId = 4;
+  // the version of the job process definition
+  int32 processDefinitionVersion = 5;
+  // the key of the job process definition
+  int64 processDefinitionKey = 6;
+  // the associated task element ID
+  string elementId = 7;
+  // the unique key identifying the associated task, unique within the scope of the
+  // process instance
+  int64 elementInstanceKey = 8;
+  // a set of custom headers defined during modelling; returned as a serialized
+  // JSON document
+  string customHeaders = 9;
+  // the name of the worker which activated this job
+  string worker = 10;
+  // the amount of retries left to this job (should always be positive)
+  int32 retries = 11;
+  // when the job can be activated again, sent as a UNIX epoch timestamp
+  int64 deadline = 12;
+  // JSON document, computed at activation time, consisting of all visible variables to
+  // the task scope
+  string variables = 13;
+}
+
+message CompleteJobRequest {
+  // the unique job identifier, as obtained from ActivateJobsResponse
+  int64 jobKey = 1;
+  // a JSON document representing the variables in the current task scope
+  string variables = 2;
+}
+
+message CompleteJobResponse {
+}
+
+message FailJobRequest {
+  // the unique job identifier, as obtained when activating the job
+  int64 jobKey = 1;
+  // the amount of retries the job should have left
+  int32 retries = 2;
+  // an optional message describing why the job failed
+  // this is particularly useful if a job runs out of retries and an incident is raised,
+  // as it this message can help explain why an incident was raised
+  string errorMessage = 3;
+}
+
+message FailJobResponse {
+}
+
+message ThrowErrorRequest {
+  // the unique job identifier, as obtained when activating the job
+  int64 jobKey = 1;
+  // the error code that will be matched with an error catch event
+  string errorCode = 2;
+  // an optional error message that provides additional context
+  string errorMessage = 3;
+}
+
+message ThrowErrorResponse {
+}
+
 service Gateway {
   /*
     Publishes a single message. Messages are published to specific partitions computed from their correlation keys.
@@ -33,5 +127,18 @@ service Gateway {
         - a message with the same ID was previously published (and is still alive)
    */
   rpc PublishMessage (PublishMessageRequest) returns (PublishMessageResponse) {
+  }
+
+  /*
+    Iterates through all known partitions round-robin and activates up to the requested
+    maximum and streams them back to the client as they are activated.
+    Errors:
+     INVALID_ARGUMENT:
+      - type is blank (empty string, null)
+      - worker is blank (empty string, null)
+      - timeout less than 1
+      - maxJobsToActivate is less than 1
+   */
+  rpc ActivateJobs (ActivateJobsRequest) returns (stream ActivateJobsResponse) {
   }
 }

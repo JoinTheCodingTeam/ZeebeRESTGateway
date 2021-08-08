@@ -3,6 +3,7 @@
     <words>
       <w>aiohttp</w>
       <w>asctime</w>
+      <w>bpmn</w>
       <w>fastapi</w>
       <w>grpc</w>
       <w>levelprefix</w>

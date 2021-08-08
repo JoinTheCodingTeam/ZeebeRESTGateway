@@ -15,9 +15,14 @@ class GatewayStub(object):
             channel: A grpc.Channel.
         """
         self.PublishMessage = channel.unary_unary(
-                '/Gateway/PublishMessage',
+                '/gateway_protocol.Gateway/PublishMessage',
                 request_serializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.PublishMessageRequest.SerializeToString,
                 response_deserializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.PublishMessageResponse.FromString,
+                )
+        self.ActivateJobs = channel.unary_stream(
+                '/gateway_protocol.Gateway/ActivateJobs',
+                request_serializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsRequest.SerializeToString,
+                response_deserializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsResponse.FromString,
                 )
 
 
@@ -35,6 +40,21 @@ class GatewayServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ActivateJobs(self, request, context):
+        """
+        Iterates through all known partitions round-robin and activates up to the requested
+        maximum and streams them back to the client as they are activated.
+        Errors:
+        INVALID_ARGUMENT:
+        - type is blank (empty string, null)
+        - worker is blank (empty string, null)
+        - timeout less than 1
+        - maxJobsToActivate is less than 1
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_GatewayServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -43,9 +63,14 @@ def add_GatewayServicer_to_server(servicer, server):
                     request_deserializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.PublishMessageRequest.FromString,
                     response_serializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.PublishMessageResponse.SerializeToString,
             ),
+            'ActivateJobs': grpc.unary_stream_rpc_method_handler(
+                    servicer.ActivateJobs,
+                    request_deserializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsRequest.FromString,
+                    response_serializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'Gateway', rpc_method_handlers)
+            'gateway_protocol.Gateway', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
@@ -64,8 +89,25 @@ class Gateway(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/Gateway/PublishMessage',
+        return grpc.experimental.unary_unary(request, target, '/gateway_protocol.Gateway/PublishMessage',
             zeebe__rest__gateway_dot_spec_dot_gateway__pb2.PublishMessageRequest.SerializeToString,
             zeebe__rest__gateway_dot_spec_dot_gateway__pb2.PublishMessageResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ActivateJobs(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/gateway_protocol.Gateway/ActivateJobs',
+            zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsRequest.SerializeToString,
+            zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
