@@ -7,6 +7,7 @@ import asyncio
 from typing import Callable
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from zeebe_rest_gateway import endpoints
 from zeebe_rest_gateway.containers import Container
@@ -23,6 +24,7 @@ class App(FastAPI):
         super().__init__()
         self.container = container
         self.include_router(endpoints.router)
+        self.mount('/webui', StaticFiles(directory='webui/public', html=True), name='static')
 
 
 def create_app() -> App:
