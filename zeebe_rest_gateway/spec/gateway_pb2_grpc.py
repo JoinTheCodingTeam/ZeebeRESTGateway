@@ -24,6 +24,16 @@ class GatewayStub(object):
                 request_serializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsRequest.SerializeToString,
                 response_deserializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsResponse.FromString,
                 )
+        self.CompleteJob = channel.unary_unary(
+                '/gateway_protocol.Gateway/CompleteJob',
+                request_serializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.CompleteJobRequest.SerializeToString,
+                response_deserializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.CompleteJobResponse.FromString,
+                )
+        self.FailJob = channel.unary_unary(
+                '/gateway_protocol.Gateway/FailJob',
+                request_serializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.FailJobRequest.SerializeToString,
+                response_deserializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.FailJobResponse.FromString,
+                )
 
 
 class GatewayServicer(object):
@@ -55,6 +65,38 @@ class GatewayServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CompleteJob(self, request, context):
+        """
+        Completes a job with the given variables, which allows completing the associated service task.
+        Errors:
+        NOT_FOUND:
+        - no job exists with the given job key. Note that since jobs are removed once completed,
+        it could be that this job did exist at some point.
+        FAILED_PRECONDITION:
+        - the job was marked as failed. In that case, the related incident must be resolved before
+        the job can be activated again and completed.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def FailJob(self, request, context):
+        """
+        Marks the job as failed; if the retries argument is positive, then the job will be immediately
+        activatable again, and a worker could try again to process it. If it is zero or negative however,
+        an incident will be raised, tagged with the given errorMessage, and the job will not be
+        activatable until the incident is resolved.
+        Errors:
+        NOT_FOUND:
+        - no job was found with the given key
+        FAILED_PRECONDITION:
+        - the job was not activated
+        - the job is already in a failed state, i.e. ran out of retries
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_GatewayServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -67,6 +109,16 @@ def add_GatewayServicer_to_server(servicer, server):
                     servicer.ActivateJobs,
                     request_deserializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsRequest.FromString,
                     response_serializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsResponse.SerializeToString,
+            ),
+            'CompleteJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.CompleteJob,
+                    request_deserializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.CompleteJobRequest.FromString,
+                    response_serializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.CompleteJobResponse.SerializeToString,
+            ),
+            'FailJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.FailJob,
+                    request_deserializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.FailJobRequest.FromString,
+                    response_serializer=zeebe__rest__gateway_dot_spec_dot_gateway__pb2.FailJobResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -109,5 +161,39 @@ class Gateway(object):
         return grpc.experimental.unary_stream(request, target, '/gateway_protocol.Gateway/ActivateJobs',
             zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsRequest.SerializeToString,
             zeebe__rest__gateway_dot_spec_dot_gateway__pb2.ActivateJobsResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def CompleteJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/gateway_protocol.Gateway/CompleteJob',
+            zeebe__rest__gateway_dot_spec_dot_gateway__pb2.CompleteJobRequest.SerializeToString,
+            zeebe__rest__gateway_dot_spec_dot_gateway__pb2.CompleteJobResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def FailJob(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/gateway_protocol.Gateway/FailJob',
+            zeebe__rest__gateway_dot_spec_dot_gateway__pb2.FailJobRequest.SerializeToString,
+            zeebe__rest__gateway_dot_spec_dot_gateway__pb2.FailJobResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

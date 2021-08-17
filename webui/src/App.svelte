@@ -2,6 +2,7 @@
     import { createForm } from "svelte-forms-lib";
     import { writable } from "svelte/store";
     import * as yup from "yup";
+    import prettyFormatXML from "./prettyFormatXML";
 
     const Method = Object.freeze({
         GET: "GET",
@@ -15,23 +16,35 @@
         HTTPS: "https://",
     });
 
-    const bothFilled = (item) => {
+    const testKeyValueFilled = (item) => {
         return (
             (item.key == "" && item.value == "") ||
             (item.key.length > 0 && item.value.length > 0)
         );
     };
+    const testValidJSON = (item) => {
+        if (item == "") {
+            return true;
+        }
+        try {
+            JSON.parse(item);
+        } catch {
+            return false;
+        }
+        return true;
+    };
 
     const fetching = writable(false);
     const responseError = writable("");
     const responseJSONText = writable("");
+    const outputXMLText = writable("");
     const { form, errors, handleChange, handleSubmit } = createForm({
         initialValues: {
             method: Method.GET,
             protocolPrefix: ProtocolPrefix.HTTP,
             url: "",
             headers: [],
-            variables: [],
+            inputVariablesJSONText: "",
         },
         validationSchema: yup.object().shape({
             method: yup.string().oneOf(Object.values(Method)),
@@ -47,29 +60,20 @@
                     .test(
                         "bothFilled",
                         "Both fields should be filled",
-                        bothFilled
+                        testKeyValueFilled
                     )
             ),
-            variables: yup.array().of(
-                yup
-                    .object()
-                    .shape({
-                        key: yup.string().ensure(),
-                        value: yup.string().ensure(),
-                    })
-                    .test(
-                        "bothFilled",
-                        "Both fields should be filled",
-                        bothFilled
-                    )
-            ),
+            inputVariablesJSONText: yup
+                .string()
+                .test("validJSON", "Should be valid JSON", testValidJSON),
         }),
         onSubmit: async (values) => {
             $fetching = true;
             $responseError = "";
             $responseJSONText = "";
+            $outputXMLText = "";
             const headers = values.headers
-                .filter((obj) => (obj.key && obj.value))
+                .filter((obj) => obj.key && obj.value)
                 .map((obj) => ({ [obj.key]: obj.value }));
             try {
                 const response = await fetch(
@@ -82,9 +86,9 @@
                 $responseJSONText = await response.json();
             } catch (err) {
                 $responseError = err.toString();
-            } finally {
-                $fetching = false;
             }
+            $fetching = false;
+            $outputXMLText = renderXML();
         },
     });
 
@@ -99,22 +103,64 @@
         }
     };
 
-    const generateAdd = (arrayField) => () => {
-        $form[arrayField] = $form[arrayField].concat({ key: "", value: "" });
-        $errors[arrayField] = $errors[arrayField].concat({
+    const handleHeaderChange = (i) => (event) => {
+        const parts = event.target.value.split(":");
+        if (parts.length < 2) {
+            return;
+        }
+        $form.headers[i].key = parts[0].trim();
+        $form.headers[i].value = event.target.value
+            .substring(parts[0].length + 1)
+            .trim();
+    };
+
+    const addHeader = () => {
+        $form.headers = $form.headers.concat({ key: "", value: "" });
+        $errors.headers = $errors.headers.concat({
             key: "",
             value: "",
         });
     };
-    const generateRemove = (arrayField, i) => () => {
-        $form[arrayField] = $form[arrayField].filter((_, j) => j !== i);
-        $errors[arrayField] = $errors[arrayField].filter((_, j) => j !== i);
+    const removeHeader = (i) => () => {
+        $form.headers = $form.headers.filter((_, j) => j !== i);
+        $errors.headers = $errors.headers.filter((_, j) => j !== i);
     };
 
-    const addHeader = generateAdd("headers");
-    const removeHeader = (i) => generateRemove("headers", i);
-    const addVar = generateAdd("variables");
-    const removeVar = (i) => generateRemove("variables", i);
+    const renderXML = () => {
+        const dom = document.implementation.createDocument("", "", null);
+        const root = dom.appendChild(
+            dom.createElementNS(
+                "http://www.omg.org/spec/BPMN/20100524/MODEL",
+                "bpmn:root"
+            )
+        );
+        root.setAttribute(
+            "xmlns:zeebe",
+            "http://www.omg.org/spec/BPMN/20100524/MODEL"
+        );
+
+        const extEl = root.appendChild(
+            dom.createElement("bpmn:extensionElements")
+        );
+        const taskDef = extEl.appendChild(
+            dom.createElement("zeebe:taskDefinition")
+        );
+        taskDef.setAttribute("type", "rest");
+
+        if ($form.headers.length) {
+            const taskHdrs = taskDef.appendChild(
+                dom.createElement("zeebe:taskHeaders")
+            );
+            for (const header of $form.headers) {
+                const hdr = taskHdrs.appendChild(
+                    dom.createElement("zeebe:header")
+                );
+                hdr.setAttribute("key", header.key);
+                hdr.setAttribute("value", header.value);
+            }
+        }
+        return prettyFormatXML(dom);
+    };
 </script>
 
 <form on:submit={handleSubmit}>
@@ -148,8 +194,7 @@
         <input
             placeholder="url"
             name="url"
-            on:change={handleChange}
-            on:blur={handleChange}
+            on:blur={handleUrlChange}
             on:change={handleUrlChange}
             bind:value={$form.url}
             disabled={$fetching}
@@ -180,16 +225,16 @@
             <input
                 name={`headers[${j}].key`}
                 placeholder="name"
-                on:change={handleChange}
-                on:blur={handleChange}
+                on:blur={handleHeaderChange(j)}
+                on:change={handleHeaderChange(j)}
                 bind:value={$form.headers[j].key}
                 disabled={$fetching}
             />
             <input
                 placeholder="value"
                 name={`headers[${j}].value`}
-                on:change={handleChange}
-                on:blur={handleChange}
+                on:blur={handleHeaderChange(j)}
+                on:change={handleHeaderChange(j)}
                 bind:value={$form.headers[j].value}
                 disabled={$fetching}
             />
@@ -215,51 +260,17 @@
         {/if}
     {/each}
 
-    <p>
-        Variables
-        {#if $form.variables.length == 0}
-            <button type="button" on:click={addVar} disabled={$fetching}
-                >+</button
-            >
-        {/if}
-    </p>
-    {#each $form.variables as _, j}
-        <div class="form-group">
-            <input
-                name={`variables[${j}].key`}
-                placeholder="name"
-                on:change={handleChange}
-                on:blur={handleChange}
-                bind:value={$form.variables[j].key}
-                disabled={$fetching}
-            />
-            <input
-                placeholder="value"
-                name={`variables[${j}].value`}
-                on:change={handleChange}
-                on:blur={handleChange}
-                bind:value={$form.variables[j].value}
-                disabled={$fetching}
-            />
-            <button type="button" on:click={removeVar(j)} disabled={$fetching}
-                >-</button
-            >
-            {#if j === $form.variables.length - 1}
-                <button type="button" on:click={addVar} disabled={$fetching}
-                    >+</button
-                >
-            {/if}
-        </div>
-        {#if $errors.variables[j] && typeof $errors.variables[j] == "string"}
-            <small class="error">{$errors.variables[j]}</small>
-        {/if}
-        {#if $errors.variables[j]?.key}
-            <small class="error">{$errors.variables[j].key}</small>
-        {/if}
-        {#if $errors.variables[j]?.value}
-            <small class="error">{$errors.variables[j].value}</small>
-        {/if}
-    {/each}
+    <p>Variables</p>
+    <textarea
+        name="inputVariablesJSONText"
+        on:change={handleChange}
+        on:blur={handleChange}
+        bind:value={$form.inputVariablesJSONText}
+        disabled={$fetching}
+    />
+    {#if $errors.inputVariablesJSONText}
+        <small class="error">{$errors.inputVariablesJSONText}</small>
+    {/if}
 
     <div class="button-group">
         <button type="button" on:click={handleSubmit} disabled={$fetching}
@@ -267,8 +278,13 @@
         >
     </div>
 
+    <p>Response</p>
     <small>{$responseError}</small>
-    <pre>{JSON.stringify($responseJSONText, null, 2)}</pre>
+    <pre>{$responseJSONText ? JSON.stringify($responseJSONText, null, 2) : ''}</pre>
+
+    <p>Zeebe process XML</p>
+    <pre>{$outputXMLText}
+</pre>
 </form>
 
 <style>

@@ -107,17 +107,6 @@ message FailJobRequest {
 message FailJobResponse {
 }
 
-message ThrowErrorRequest {
-  // the unique job identifier, as obtained when activating the job
-  int64 jobKey = 1;
-  // the error code that will be matched with an error catch event
-  string errorCode = 2;
-  // an optional error message that provides additional context
-  string errorMessage = 3;
-}
-
-message ThrowErrorResponse {
-}
 
 service Gateway {
   /*
@@ -140,5 +129,33 @@ service Gateway {
       - maxJobsToActivate is less than 1
    */
   rpc ActivateJobs (ActivateJobsRequest) returns (stream ActivateJobsResponse) {
+  }
+
+  /*
+    Completes a job with the given variables, which allows completing the associated service task.
+    Errors:
+      NOT_FOUND:
+        - no job exists with the given job key. Note that since jobs are removed once completed,
+          it could be that this job did exist at some point.
+      FAILED_PRECONDITION:
+        - the job was marked as failed. In that case, the related incident must be resolved before
+          the job can be activated again and completed.
+   */
+  rpc CompleteJob (CompleteJobRequest) returns (CompleteJobResponse) {
+  }
+
+  /*
+    Marks the job as failed; if the retries argument is positive, then the job will be immediately
+    activatable again, and a worker could try again to process it. If it is zero or negative however,
+    an incident will be raised, tagged with the given errorMessage, and the job will not be
+    activatable until the incident is resolved.
+    Errors:
+      NOT_FOUND:
+        - no job was found with the given key
+      FAILED_PRECONDITION:
+        - the job was not activated
+        - the job is already in a failed state, i.e. ran out of retries
+   */
+  rpc FailJob (FailJobRequest) returns (FailJobResponse) {
   }
 }
