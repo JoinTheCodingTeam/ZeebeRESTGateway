@@ -17,8 +17,20 @@ export default function (xmlDoc) {
     const resultDoc = xsltProcessor.transformToDocument(xmlDoc);
     return new XMLSerializer()
         .serializeToString(resultDoc)
-        .split('\n')
-        .slice(1, -1)
-        .map(line => line.substr(2))
-        .join('\n');
+        // .split('\n')
+        // .slice(1, -1)
+        // .map(line => line.substr(2))
+        // .join('\n');
 };
+
+{/* <bpmn:extensionElements>
+        <zeebe:taskDefinition type="rest" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="= ctoTelegramId" target="telegramId" />
+          <zeebe:output source="= response.length" target="responseLength" />
+        </zeebe:ioMapping>
+        <zeebe:taskHeaders>
+          <zeebe:header key="headers" value="{&#34;Content-Type&#34;: &#34;application/json&#34;}" />
+          <zeebe:header key="url" value="http://1" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements> */}
