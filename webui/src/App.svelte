@@ -70,15 +70,23 @@
             responseJSON = null;
             responseError = null;
             const httpHeaders = values.httpHeaders
-                .map(obj => ({key: obj.key, value: replaceVars(obj.value)}))
+                .filter((obj) => obj.key && obj.value)
+                .map((obj) => ({ [obj.key]: obj.value }));
+            const variables = values.variables
                 .filter((obj) => obj.key && obj.value)
                 .map((obj) => ({ [obj.key]: obj.value }));
             try {
-                const url = replaceVars(values.url);
-                console.log(url);
-                const response = await fetch(values.protocolPrefix + url, {
-                    method: values.method,
-                    headers: Object.assign({}, ...httpHeaders),
+                const response = await fetch("/fetch", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        method: values.method,
+                        url: values.protocolPrefix + values.url,
+                        headers: Object.assign({}, ...httpHeaders),
+                        variables: Object.assign({}, ...variables),
+                    }),
                 });
                 responseJSON = await response.json();
             } catch (err) {
@@ -87,16 +95,6 @@
             fetching = false;
         },
     });
-
-    const replaceVars = (str) => {
-        return str.replaceAll(VAR_REGEXP, (_, m1, m2) => {
-            const result = $form.variables.filter(
-                (kv) => kv.key == (m1 || m2)
-            )[0]?.value;
-            console.log("!!", m1 || m2, result);
-            return result !== undefined ? result : "";
-        });
-    };
 
     const handleUrlChange = (event) => {
         for (const prefix of Object.values(ProtocolPrefix)) {
@@ -201,10 +199,12 @@
         const httpHeaders = form.httpHeaders
             .filter((obj) => obj.key && obj.value)
             .map((obj) => ({ [obj.key]: obj.value }));
+        const variableNames = form.variables.map((obj) => obj.key).filter(el => el);
         const headers = {
             method: form.method,
             url: form.protocolPrefix + form.url,
             headers: JSON.stringify(Object.assign({}, ...httpHeaders)),
+            variables: JSON.stringify(variableNames),
         };
         for (const [key, value] of Object.entries(headers)) {
             const header = headersEl.appendChild(
@@ -259,7 +259,7 @@
             return;
         }
 
-        const variables = [];
+        const variableNames = [];
         const mappingEls = [
             ...newDOM.getElementsByTagName("zeebe:input"),
         ].concat([...newDOM.getElementsByTagName("zeebe:output")]);
@@ -270,7 +270,7 @@
         }));
         mappingEls.forEach((el) => {
             if (el.tagName == "zeebe:input") {
-                variables.push(el.getAttribute("target"));
+                variableNames.push(el.getAttribute("target"));
             }
         });
 
@@ -280,20 +280,18 @@
             const value = header.getAttribute("value");
             if (key == "method") {
                 $form.method = value;
-            }
-            if (key == "url") {
+            } else if (key == "url") {
                 const [prefix, url] = value.split("//", 2);
                 $form.protocolPrefix = prefix + "//";
                 $form.url = url;
-                variables.push(
+                variableNames.push(
                     ...[...url.matchAll(VAR_REGEXP)].map((x) => x[1] || x[2])
                 );
-            }
-            if (key == "headers") {
+            } else if (key == "headers") {
                 $form.httpHeaders = Object.entries(JSON.parse(value)).map(
                     ([key, val]) => ({ key: key, value: val })
                 );
-                variables.push(
+                variableNames.push(
                     ...$form.httpHeaders
                         .map((el) =>
                             [...el.value.matchAll(VAR_REGEXP)].map(
@@ -302,9 +300,11 @@
                         )
                         .flat()
                 );
+            } else if (key == "variables") {
+                variableNames.push(...JSON.parse(value));
             }
         }
-        $form.variables = [...new Set(variables)].map((key) => ({
+        $form.variables = [...new Set(variableNames)].map((key) => ({
             key,
             value: "",
         }));
