@@ -1,5 +1,5 @@
 """Service endpoints"""
-from typing import Optional, Dict
+from typing import Dict
 
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Body
@@ -26,4 +26,5 @@ async def publish(message: Message, zeebe_client: ZeebeClient = Depends(Provide[
 @inject
 async def do_fetch(method: str = Body(default=""), url: str = Body(default=""),
                    headers: Dict[str, str] = Body(default={}), variables: Dict[str, str] = Body(default={})):
+    """Perform an HTTP request using template data and variables"""
     return await fetch.fetch(method, url, headers, variables)
