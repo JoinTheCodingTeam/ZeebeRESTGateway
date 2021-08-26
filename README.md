@@ -9,7 +9,12 @@ A stateless daemon for translating Zeebe gRPC calls to REST requests and vice ve
 
 2. Configure Zeebe connection and other options in `.env`. See `.env.example` for available options.
 
-3. Start the server
+3. Build the web UI.
+    ```
+    npm run build --prefix=webui
+    ```
+
+4. Start the server
     ```
     uvicorn zeebe_rest_gateway.app:create_app --host 0.0.0.0 --port 8000 --log-config=logging.yaml
     ```
@@ -44,7 +49,12 @@ Zeebe version](https://github.com/camunda-cloud/zeebe/blob/clients/go%2Fv1.1.1/g
     make lint
     ```
    
-8. Start the debug server:
+8. Start web UI debug server:
+    ```
+    npm run dev --prefix=webui        
+    ``` 
+   
+9. Start the debug server:
     ```
     make run_debug_server 
     ```
