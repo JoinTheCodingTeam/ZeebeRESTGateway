@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     rest_job_timeout_ms = 10000
     rest_max_simultaneous_jobs = 4
     zeebe_worker_delay_after_error_ms = 100
+    zeebe_worker_http_retry_delay_ms = 1000
 
     class Config:
         """Meta configuration"""

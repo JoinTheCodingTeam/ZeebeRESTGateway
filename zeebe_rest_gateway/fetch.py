@@ -12,4 +12,7 @@ async def fetch(method: str, url: str, headers: Dict[str, str], variables: Dict[
                for key, value in headers.items()}
     async with aiohttp.ClientSession() as session:
         async with session.request(method, url, headers=headers, json=variables) as resp:
-            return await resp.json()
+            if 200 <= resp.status < 300:
+                return await resp.json()
+            text = await resp.text()
+            raise aiohttp.ClientError(f'Request failed with code {resp.status}: {text}')

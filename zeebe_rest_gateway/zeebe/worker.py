@@ -8,7 +8,7 @@ from grpc.aio import AioRpcError
 
 from zeebe_rest_gateway.fetch import fetch
 from zeebe_rest_gateway.settings import Settings
-from zeebe_rest_gateway.spec.gateway_pb2 import ActivateJobsRequest, FailJobRequest
+from zeebe_rest_gateway.spec.gateway_pb2 import ActivateJobsRequest, FailJobRequest, CompleteJobRequest
 from zeebe_rest_gateway.spec.gateway_pb2_grpc import GatewayStub
 
 
@@ -47,13 +47,29 @@ class ZeebeWorker:
                                 continue
 
                             try:
-                                response = await fetch(**variables, **headers)
+                                method = headers['method']
+                                url = headers['url']
+                                http_headers = json.loads(headers['headers'])
+                                variable_names = set(json.loads(headers['variables']))
+                                variables = {key: value for key, value in variables.items() if key in variable_names}
+
+                            except Exception as err:  # pylint: disable=W0703
+                                await self.__fail(job.key, f'Failed to perform HTTP request: {err}')
+                                continue
+
+                            try:
+                                response = await fetch(method, url, http_headers, variables)
                             except TypeError as err:
                                 await self.__fail(job.key, f'Failed to perform HTTP request: {err}')
                                 continue
-                            except aiohttp.ClientError:
-                                # TODO: handle job error. Reduce retry count etc
-                                pass
+                            except aiohttp.ClientError as err:
+                                await self.__fail(job.key, f'HTTP request failed: {err}',
+                                                  retries_left=max(0, job.retries - 1))
+                                await sleep(self.settings.zeebe_worker_http_retry_delay_ms)
+                                continue
+
+                            await self.gateway_stub.CompleteJob(
+                                CompleteJobRequest(jobKey=job.key, variables=json.dumps(response)))
 
                 except AioRpcError as err:
                     logger.error('gRPC exception: %s. Retrying in %d ms', err, next_delay_ms)
@@ -68,7 +84,7 @@ class ZeebeWorker:
         """Stops listening to Zeebe job events"""
         self.stopped = True
 
-    async def __fail(self, job_key: int, error_message: str) -> None:
+    async def __fail(self, job_key: int, error_message: str, *, retries_left: int = 0) -> None:
         logger.error('Job failed: %s', error_message)
         await self.gateway_stub.FailJob(
-            FailJobRequest(jobKey=job_key, retries=0, errorMessage=error_message))
+            FailJobRequest(jobKey=job_key, retries=retries_left, errorMessage=error_message))
